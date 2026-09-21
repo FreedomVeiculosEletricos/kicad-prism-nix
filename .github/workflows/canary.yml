@@ -1,0 +1,73 @@
+name: Canary
+
+# Weekly rather than daily: catching upstream drift early is worth a
+# notification, every morning is not. A green run also counts as repository
+# activity, which is what stops GitHub disabling these schedules after 60 days.
+
+on:
+  schedule:
+    - cron: "13 5 * * 2" # Tuesdays, 05:13 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Bump the upstream pin if it still builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: ./.github/actions/setup-nix
+
+      - name: Bump the upstream pin
+        id: bump
+        run: |
+          set -euo pipefail
+
+          before=$(jq -r '.nodes["kicad-prism"].locked.rev' flake.lock)
+          nix flake update kicad-prism
+          after=$(jq -r '.nodes["kicad-prism"].locked.rev' flake.lock)
+
+          if [ "$before" = "$after" ]; then
+            echo "Upstream dev is unchanged at ${before}." >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "changed=true"
+              echo "rev=$after"
+              echo "short=${after:0:12}"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "Upstream dev moved."
+              echo
+              echo "- from \`${before}\`"
+              echo "- to \`${after}\`"
+              echo
+              echo "https://github.com/krishna-swaroop/KiCAD-Prism/compare/${before}...${after}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Runs before the push, so `main` only ever points at a green build.
+      - uses: ./.github/actions/build-all
+        if: steps.bump.outputs.changed == 'true'
+
+      - name: Commit the new pin
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(deps): track upstream dev at ${{ steps.bump.outputs.short }}" flake.lock
+          git push origin HEAD:main

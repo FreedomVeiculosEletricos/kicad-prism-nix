@@ -1,0 +1,9 @@
+name: Build everything
+description: Builds every package and the devShell via the flake's own checks.
+
+runs:
+  using: composite
+  steps:
+    - name: nix flake check
+      shell: bash
+      run: nix flake check --print-build-logs

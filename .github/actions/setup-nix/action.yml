@@ -1,0 +1,13 @@
+name: Set up Nix
+description: Installs Nix with the fleet cache as a read-only substituter.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v22
+      with:
+        # Public and read-only; the remote builder is what writes to it.
+        extra-conf: |
+          extra-substituters = https://cache.freedom.ind.br
+          extra-trusted-public-keys = cache.freedom.ind.br:4+Tt+AZreSw+P7xP0d6eHtIHhSAlkFbSa/9ugOkiMSM=

@@ -1,0 +1,136 @@
+name: Release
+
+# Publishing the draft this opens is the one manual step: nothing downstream
+# looks at a release until it stops being a draft. The release commit lands on
+# no branch, so main keeps tracking upstream dev and the tag is the only ref
+# pointing at the pin.
+
+on:
+  schedule:
+    - cron: "7 6,18 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Upstream tag to cut (default: upstream latest release)"
+        required: false
+        type: string
+      force:
+        description: Cut another -nix.N even if this upstream tag was released
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: krishna-swaroop/KiCAD-Prism
+
+jobs:
+  release:
+    name: Cut a release from the newest upstream tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Work off a detached HEAD
+        run: git checkout --detach
+
+      - name: Decide which tag to cut
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WANT: ${{ inputs.tag }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$WANT" ]; then
+            upstream_tag="$WANT"
+          else
+            upstream_tag=$(gh release view --repo "$UPSTREAM" --json tagName --jq .tagName)
+          fi
+          echo "Upstream's latest release is ${upstream_tag}."
+
+          # Our tags are the upstream tag plus a packaging counter, so a
+          # packaging-only fix can be re-cut against the same upstream release.
+          last=$(git tag --list "${upstream_tag}-nix.*" \
+                   | sed -E "s/.*-nix\.//" | sort -n | tail -1)
+
+          if [ -n "$last" ] && [ "$FORCE" != "true" ]; then
+            echo "Already released as ${upstream_tag}-nix.${last}; nothing to do." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          next=$(( ${last:-0} + 1 ))
+
+          {
+            echo "skip=false"
+            echo "upstream_tag=${upstream_tag}"
+            echo "tag=${upstream_tag}-nix.${next}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup-nix
+        if: steps.plan.outputs.skip == 'false'
+
+      - name: Pin the upstream input to ${{ steps.plan.outputs.upstream_tag }}
+        if: steps.plan.outputs.skip == 'false'
+        env:
+          UPSTREAM_TAG: ${{ steps.plan.outputs.upstream_tag }}
+        run: |
+          set -euo pipefail
+
+          sed -i -E \
+            "s#(url = \"github:${UPSTREAM})/[^\"]*(\";)#\1/${UPSTREAM_TAG}\2#" \
+            flake.nix
+          grep -F "github:${UPSTREAM}/${UPSTREAM_TAG}" flake.nix
+
+          nix flake update kicad-prism
+
+      - uses: ./.github/actions/build-all
+        if: steps.plan.outputs.skip == 'false'
+
+      - name: Tag the build
+        if: steps.plan.outputs.skip == 'false'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+          UPSTREAM_TAG: ${{ steps.plan.outputs.upstream_tag }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(release): pin upstream to ${UPSTREAM_TAG}" flake.nix flake.lock
+          git tag -a "$TAG" -m "KiCad Prism ${UPSTREAM_TAG}, packaging ${TAG##*-nix.}"
+          git push origin "refs/tags/${TAG}"
+
+      - name: Open the release as a draft
+        if: steps.plan.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          UPSTREAM_TAG: ${{ steps.plan.outputs.upstream_tag }}
+        run: |
+          set -euo pipefail
+
+          cat > notes.md <<NOTES
+          Packaging of upstream [\`${UPSTREAM_TAG}\`](https://github.com/${UPSTREAM}/releases/tag/${UPSTREAM_TAG}), built green.
+
+          This is a draft. Publishing it is what makes the tag public.
+          NOTES
+
+          gh release create "$TAG" --draft --title "$TAG" --notes-file notes.md
+
+          echo "Drafted ${TAG} — publish it to deploy." >> "$GITHUB_STEP_SUMMARY"
