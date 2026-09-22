@@ -9,6 +9,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # main tracks upstream dev; release.yml re-points this at a tag.
     kicad-prism = {
       url = "github:krishna-swaroop/KiCAD-Prism/dev";
@@ -28,6 +33,7 @@
         src = inputs.kicad-prism;
         ref = upstreamRef;
         inherit (inputs.kicad-prism) lastModifiedDate;
+        inherit (inputs) pyproject-nix;
       };
     in
     inputs.blueprint {
