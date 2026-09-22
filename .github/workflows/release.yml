@@ -84,19 +84,11 @@ jobs:
       - uses: ./.github/actions/setup-nix
         if: steps.plan.outputs.skip == 'false'
 
-      - name: Pin the upstream input to ${{ steps.plan.outputs.upstream_tag }}
+      - uses: ./.github/actions/pin-upstream
         if: steps.plan.outputs.skip == 'false'
-        env:
-          UPSTREAM_TAG: ${{ steps.plan.outputs.upstream_tag }}
-        run: |
-          set -euo pipefail
-
-          sed -i -E \
-            "s#(url = \"github:${UPSTREAM})/[^\"]*(\";)#\1/${UPSTREAM_TAG}\2#" \
-            flake.nix
-          grep -F "github:${UPSTREAM}/${UPSTREAM_TAG}" flake.nix
-
-          nix flake update kicad-prism
+        with:
+          ref: ${{ steps.plan.outputs.upstream_tag }}
+          upstream: ${{ env.UPSTREAM }}
 
       - uses: ./.github/actions/build-all
         if: steps.plan.outputs.skip == 'false'

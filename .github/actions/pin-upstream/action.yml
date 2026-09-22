@@ -1,0 +1,29 @@
+name: Pin the upstream input
+description: Re-points the kicad-prism flake input at a given upstream ref.
+
+inputs:
+  ref:
+    description: Upstream tag or branch to build against.
+    required: true
+  upstream:
+    description: Upstream owner/repo.
+    required: false
+    default: krishna-swaroop/KiCAD-Prism
+
+runs:
+  using: composite
+  steps:
+    - name: Pin the upstream input to ${{ inputs.ref }}
+      shell: bash
+      env:
+        REF: ${{ inputs.ref }}
+        UPSTREAM: ${{ inputs.upstream }}
+      run: |
+        set -euo pipefail
+
+        sed -i -E \
+          "s#(url = \"github:${UPSTREAM})/[^\"]*(\";)#\1/${REF}\2#" \
+          flake.nix
+        grep -F "github:${UPSTREAM}/${REF}" flake.nix
+
+        nix flake update kicad-prism
