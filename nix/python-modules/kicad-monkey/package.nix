@@ -17,15 +17,15 @@
 
 buildPythonPackage rec {
   pname = "kicad-monkey";
-  version = "2026.8.22";
+  version = "2026.9.7";
   pyproject = true;
 
-  disabled = pythonOlder "3.11" || pythonAtLeast "3.13";
+  disabled = pythonOlder "3.11" || pythonAtLeast "3.15";
 
   src = fetchPypi {
     pname = "kicad_monkey";
     inherit version;
-    hash = "sha256-KkGK/tdMopXrjJda5Ens4wLlWbOcnq1NbwmKYm7F21w=";
+    hash = "sha256-3q7nGsJ9S7Qj9/gax9Mg/LYxulnXtjYjEyv6ILfH0+Q=";
   };
 
   build-system = [ hatchling ];

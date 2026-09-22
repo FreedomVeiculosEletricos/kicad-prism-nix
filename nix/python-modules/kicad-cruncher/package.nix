@@ -16,15 +16,15 @@
 
 buildPythonPackage rec {
   pname = "kicad-cruncher";
-  version = "2026.8.22";
+  version = "2026.9.7";
   pyproject = true;
 
-  disabled = pythonOlder "3.11" || pythonAtLeast "3.13";
+  disabled = pythonOlder "3.11" || pythonAtLeast "3.15";
 
   src = fetchPypi {
     pname = "kicad_cruncher";
     inherit version;
-    hash = "sha256-urxEm8OlDyJIePH4bYgTUUhuyv/b0wUepSMsZL+ubQM=";
+    hash = "sha256-aSHK2c74yXlm6q2Kx2Ealnc0NGnzalILTAMRFOc0VJA=";
   };
 
   build-system = [ hatchling ];
