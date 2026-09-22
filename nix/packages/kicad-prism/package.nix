@@ -32,14 +32,17 @@ let
   ];
 
   installCheckScript = writeText "kicad-prism-install-check.py" ''
+    import shutil
+
     import app.main
-    from app.release_studio.steps import resolve_cli_path, resolve_cruncher_path
-    from app.services import password_credential_service
 
     print(app.main.app.title)
 
-    for resolve in (resolve_cli_path, resolve_cruncher_path):
-        print(resolve())
+    for tool in ("kicad-cli", "kicad-cruncher"):
+        found = shutil.which(tool)
+        if found is None:
+            raise SystemExit(f"{tool} is not on PATH; the wrapper did not take")
+        print(found)
   '';
 in
 python312Packages.buildPythonApplication rec {
