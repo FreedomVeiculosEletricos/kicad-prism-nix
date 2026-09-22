@@ -13,10 +13,29 @@
   kicad-prism-viewer,
   prism-clipper2,
   sources,
+  pyproject-nix,
 }:
 
 let
   inherit (python312Packages) makePythonPath python;
+
+  upstream = pyproject-nix.lib.project.loadRequirementsTxt {
+    requirements = builtins.readFile sources.requirements;
+    projectRoot = sources.kicad-prism;
+  };
+
+  acceptedDrift = {
+    bcrypt = "nixpkgs ships 5.0.0; upstream's <5 cap guards a path this app closes itself";
+  };
+
+  drift = upstream.validators.validateVersionConstraints { inherit python; };
+
+  unexpectedDrift = lib.attrNames (lib.removeAttrs drift (lib.attrNames acceptedDrift));
+
+  dependencies = lib.throwIf (unexpectedDrift != [ ]) ''
+    kicad-prism: nixpkgs does not satisfy what upstream declares for ${lib.concatStringsSep ", " unexpectedDrift}.
+    Override the package, hold the bump, or record the mismatch in `acceptedDrift` with the reason it is safe.
+  '' (upstream.renderers.buildPythonPackage { inherit python; }).dependencies;
 
   viewerRoot = "${kicad-prism-viewer}/share/kicad-prism-viewer";
 
@@ -45,7 +64,7 @@ let
         print(found)
   '';
 in
-python312Packages.buildPythonApplication rec {
+python312Packages.buildPythonApplication {
   pname = "kicad-prism";
   version = sources.version;
   pyproject = false;
@@ -54,32 +73,7 @@ python312Packages.buildPythonApplication rec {
 
   nativeBuildInputs = [ makeWrapper ];
 
-  dependencies =
-    with python312Packages;
-    [
-      bcrypt
-      cairosvg
-      fastapi
-      fonttools
-      gitpython
-      kicad-cruncher
-      kicad-monkey
-      kiutils
-      pikepdf
-      pillow
-      psycopg
-      psycopg-pool
-      pydantic
-      pydantic-settings
-      pypdf
-      python-dotenv
-      python-multipart
-      pyjwt
-      pyyaml
-      requests
-      uvicorn
-    ]
-    ++ pyjwt.optional-dependencies.crypto;
+  inherit dependencies;
 
   dontWrapPythonPrograms = true;
 

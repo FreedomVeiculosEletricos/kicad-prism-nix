@@ -18,6 +18,12 @@ in
 {
   inherit version;
 
+  requirements =
+    if builtins.pathExists (src + "/requirements/runtime.in") then
+      src + "/requirements/runtime.in"
+    else
+      src + "/backend/requirements.txt";
+
   kicad-prism = src;
   kicad-prism-frontend = src + "/frontend";
   kicad-prism-viewer = src + "/kicad-prism-viewer";
