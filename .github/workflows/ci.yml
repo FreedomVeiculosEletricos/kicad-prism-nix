@@ -14,12 +14,43 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  UPSTREAM: krishna-swaroop/KiCAD-Prism
+
 jobs:
   build:
-    name: Nix packages and devShell
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Nix packages and devShell (pinned dev)
+            repin: false
+          - name: Nix packages and devShell (latest upstream release)
+            repin: true
+
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-nix
+
+      - name: Resolve the newest upstream tag
+        id: plan
+        if: matrix.repin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(gh release view --repo "$UPSTREAM" --json tagName --jq .tagName)
+          echo "Building against upstream ${tag}." >> "$GITHUB_STEP_SUMMARY"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/pin-upstream
+        if: matrix.repin
+        with:
+          ref: ${{ steps.plan.outputs.tag }}
+          upstream: ${{ env.UPSTREAM }}
+
       - uses: ./.github/actions/build-all
