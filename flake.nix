@@ -2,6 +2,22 @@
   description = "Nix packaging for KiCad Prism — packages, overlay and NixOS module";
 
   inputs = {
+
+    treefmt-nix = {
+
+      url = "github:numtide/treefmt-nix";
+
+      inputs.nixpkgs.follows = "nixpkgs";
+
+    };
+
+    pedantix = {
+
+      url = "github:Swarsel/pedantix";
+
+      inputs.nixpkgs.follows = "nixpkgs";
+
+    };
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     blueprint = {
