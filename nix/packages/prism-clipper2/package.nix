@@ -1,8 +1,8 @@
 {
   lib,
-  stdenv,
   cmake,
   sources,
+  stdenv,
 }:
 
 stdenv.mkDerivation (finalAttrs: {

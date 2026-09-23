@@ -2,9 +2,9 @@
 # and the input is pinned by revision anyway, so everything rebuilds together.
 {
   lib,
-  src,
-  ref,
   lastModifiedDate,
+  ref,
+  src,
 }:
 let
   day = builtins.substring 0 8 lastModifiedDate;

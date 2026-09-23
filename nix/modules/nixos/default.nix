@@ -355,121 +355,118 @@ in
         '';
       }
     ];
-
     warnings = lib.optional (secretsInStore != [ ]) ''
       services.kicad-prism.settings contains ${lib.concatStringsSep ", " secretsInStore},
       which is written to a world-readable file in the Nix store. Move it to
       services.kicad-prism.environmentFile.
     '';
+    services = {
+      kicad-prism.settings = {
+        KICAD_PROJECTS_ROOT = lib.mkDefault cfg.projectsDir;
+        PRISM_DATABASE_URL = lib.mkDefault databaseUrl;
+        DEV_MODE = lib.mkDefault false;
+        GIT_SCAN_KNOWN_HOSTS_ON_STARTUP = lib.mkDefault false;
+        PASSWORD_AUTH_ENABLED = lib.mkDefault true;
+      };
+      postgresql = lib.mkIf cfg.database.createLocally {
+        enable = true;
+        ensureDatabases = [ cfg.database.name ];
+        ensureUsers = [
+          {
+            name = cfg.database.user;
+            ensureDBOwnership = true;
+          }
+        ];
+      };
+      nginx = lib.mkIf cfg.nginx.enable {
+        enable = true;
+        commonHttpConfig = ''
+          map $http_x_forwarded_proto $prism_forwarded_proto {
+              default $http_x_forwarded_proto;
+              ""      $scheme;
+          }
+        '';
+        virtualHosts.${cfg.nginx.serverName} = {
+          root = "${cfg.package.frontend}/share/kicad-prism/frontend";
+          locations = {
+            "/" = {
+              index = "index.html";
+              tryFiles = "$uri $uri/ /index.html";
+            };
 
-    services.kicad-prism.settings = {
-      KICAD_PROJECTS_ROOT = lib.mkDefault cfg.projectsDir;
-      PRISM_DATABASE_URL = lib.mkDefault databaseUrl;
-      DEV_MODE = lib.mkDefault false;
-      GIT_SCAN_KNOWN_HOSTS_ON_STARTUP = lib.mkDefault false;
-      PASSWORD_AUTH_ENABLED = lib.mkDefault true;
-    };
+            "= /healthz".extraConfig = ''
+              access_log off;
+              default_type text/plain;
+              return 200 "ok\n";
+            '';
 
-    services.postgresql = lib.mkIf cfg.database.createLocally {
-      enable = true;
-      ensureDatabases = [ cfg.database.name ];
-      ensureUsers = [
-        {
-          name = cfg.database.user;
-          ensureDBOwnership = true;
-        }
-      ];
-    };
+            "~ ^/(ecad-viewer|prism-semantic-viewer)\\.js$".extraConfig = ''
+              add_header Cache-Control "no-cache" always;
+              try_files $uri =404;
+            '';
 
-    environment.etc."prism/kicad-base-image".text = "${cfg.package.kicad}\n";
+            "/api/" = proxy ''
+              client_max_body_size 2g;
+              client_body_timeout 3600s;
+              proxy_request_buffering off;
+              proxy_read_timeout 300s;
+            '';
 
-    systemd.tmpfiles.settings."10-kicad-prism" = {
-      ${cfg.stateDir} = ownedDirectory;
-      ${cfg.projectsDir} = ownedDirectory;
-    };
+            "/oauth/" = proxy "";
 
-    systemd.services = {
-      kicad-prism =
-        unit "KiCad Prism API" "${lib.getExe' cfg.package "kicad-prism-server"} --host ${cfg.address} --port ${toString cfg.port}"
-        // {
-          after = [
-            "network-online.target"
-          ]
-          ++ lib.optional cfg.database.createLocally "postgresql.target";
-          requires = lib.optional cfg.database.createLocally "postgresql.target";
-          wants = [ "network-online.target" ];
-        };
+            "/remote-provider/" = proxy "";
 
-      kicad-prism-worker = worker "prism" "KiCad Prism job worker";
+            "= /.well-known/kicad-remote-provider" = proxy "";
 
-      kicad-prism-catalog-worker = worker "catalog" "KiCad Prism component catalog worker";
-    };
-
-    services.nginx = lib.mkIf cfg.nginx.enable {
-      enable = true;
-      commonHttpConfig = ''
-        map $http_x_forwarded_proto $prism_forwarded_proto {
-            default $http_x_forwarded_proto;
-            ""      $scheme;
-        }
-      '';
-      virtualHosts.${cfg.nginx.serverName} = {
-        root = "${cfg.package.frontend}/share/kicad-prism/frontend";
-        locations = {
-          "/" = {
-            index = "index.html";
-            tryFiles = "$uri $uri/ /index.html";
+            "/_protected_projects/".extraConfig = ''
+              internal;
+              alias ${cfg.projectsDir}/;
+              add_header X-Content-Type-Options "nosniff" always;
+            '';
           };
-
-          "= /healthz".extraConfig = ''
-            access_log off;
-            default_type text/plain;
-            return 200 "ok\n";
-          '';
-
-          "~ ^/(ecad-viewer|prism-semantic-viewer)\\.js$".extraConfig = ''
-            add_header Cache-Control "no-cache" always;
-            try_files $uri =404;
-          '';
-
-          "/api/" = proxy ''
-            client_max_body_size 2g;
-            client_body_timeout 3600s;
-            proxy_request_buffering off;
-            proxy_read_timeout 300s;
-          '';
-
-          "/oauth/" = proxy "";
-
-          "/remote-provider/" = proxy "";
-
-          "= /.well-known/kicad-remote-provider" = proxy "";
-
-          "/_protected_projects/".extraConfig = ''
-            internal;
-            alias ${cfg.projectsDir}/;
-            add_header X-Content-Type-Options "nosniff" always;
-          '';
         };
       };
     };
+    environment.etc."prism/kicad-base-image".text = "${cfg.package.kicad}\n";
+    systemd = {
+      tmpfiles.settings."10-kicad-prism" = {
+        ${cfg.stateDir} = ownedDirectory;
+        ${cfg.projectsDir} = ownedDirectory;
+      };
+      services = {
+        kicad-prism =
+          unit "KiCad Prism API" "${lib.getExe' cfg.package "kicad-prism-server"} --host ${cfg.address} --port ${toString cfg.port}"
+          // {
+            after = [
+              "network-online.target"
+            ]
+            ++ lib.optional cfg.database.createLocally "postgresql.target";
+            requires = lib.optional cfg.database.createLocally "postgresql.target";
+            wants = [ "network-online.target" ];
+          };
 
-    users.users = lib.mkMerge [
-      (lib.mkIf (cfg.user == "kicad-prism") {
-        kicad-prism = {
-          description = "KiCad Prism service user";
-          isSystemUser = true;
-          group = cfg.group;
-          home = cfg.stateDir;
-        };
-      })
-      (lib.mkIf cfg.nginx.enable {
-        ${config.services.nginx.user}.extraGroups = [ cfg.group ];
-      })
-    ];
+        kicad-prism-worker = worker "prism" "KiCad Prism job worker";
 
-    users.groups = lib.mkIf (cfg.group == "kicad-prism") {
-      kicad-prism = { };
+        kicad-prism-catalog-worker = worker "catalog" "KiCad Prism component catalog worker";
+      };
+    };
+    users = {
+      users = lib.mkMerge [
+        (lib.mkIf (cfg.user == "kicad-prism") {
+          kicad-prism = {
+            description = "KiCad Prism service user";
+            isSystemUser = true;
+            group = cfg.group;
+            home = cfg.stateDir;
+          };
+        })
+        (lib.mkIf cfg.nginx.enable {
+          ${config.services.nginx.user}.extraGroups = [ cfg.group ];
+        })
+      ];
+      groups = lib.mkIf (cfg.group == "kicad-prism") {
+        kicad-prism = { };
+      };
     };
   };
 }

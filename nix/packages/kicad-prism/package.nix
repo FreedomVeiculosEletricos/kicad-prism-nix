@@ -1,19 +1,19 @@
 {
   lib,
-  python312Packages,
-  makeWrapper,
-  writeText,
   coreutils,
   git,
   gnutar,
   kicad,
-  nodejs,
-  openssh,
   kicad-prism-frontend,
   kicad-prism-viewer,
+  makeWrapper,
+  nodejs,
+  openssh,
   prism-clipper2,
-  sources,
   pyproject-nix,
+  python312Packages,
+  sources,
+  writeText,
 }:
 
 let
@@ -68,15 +68,10 @@ python312Packages.buildPythonApplication {
   pname = "kicad-prism";
   version = sources.version;
   pyproject = false;
-
   src = sources.kicad-prism;
-
   nativeBuildInputs = [ makeWrapper ];
-
   inherit dependencies;
-
   dontWrapPythonPrograms = true;
-
   installPhase = ''
     runHook preInstall
 
@@ -104,15 +99,12 @@ python312Packages.buildPythonApplication {
 
     runHook postInstall
   '';
-
   doInstallCheck = true;
-
   preInstallCheck = ''
     # Binds a loopback socket, which the sandbox has none of. -f because
     # upstream releases older than the test itself do not carry the file.
     rm -f backend/tests/test_gzip_middleware.py
   '';
-
   installCheckPhase = ''
     runHook preInstallCheck
 
@@ -133,10 +125,10 @@ python312Packages.buildPythonApplication {
 
     runHook postInstallCheck
   '';
-
-  passthru.frontend = kicad-prism-frontend;
-  passthru.kicad = kicad;
-
+  passthru = {
+    frontend = kicad-prism-frontend;
+    kicad = kicad;
+  };
   meta = {
     description = "Self-hosted PCB review and component governance platform for KiCad";
     homepage = "https://github.com/krishna-swaroop/KiCAD-Prism";

@@ -1,8 +1,8 @@
 {
-  src,
-  ref,
   lastModifiedDate,
   pyproject-nix,
+  ref,
+  src,
 }:
 final: prev:
 let
@@ -10,10 +10,10 @@ let
 
   sources = import ./sources.nix {
     inherit
-      lib
-      src
-      ref
       lastModifiedDate
+      lib
+      ref
+      src
       ;
   };
 in
@@ -55,6 +55,6 @@ in
   };
 
   kicad-prism = final.callPackage ./packages/kicad-prism/package.nix {
-    inherit sources pyproject-nix;
+    inherit pyproject-nix sources;
   };
 }
