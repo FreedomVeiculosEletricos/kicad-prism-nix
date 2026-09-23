@@ -1,10 +1,10 @@
 {
   lib,
-  stdenv,
+  autoPatchelfHook,
   buildPythonPackage,
   fetchPypi,
   pythonOlder,
-  autoPatchelfHook,
+  stdenv,
 }:
 
 let
@@ -36,7 +36,7 @@ buildPythonPackage {
   src = fetchPypi {
     pname = "wn_geometer";
     version = "2026.9.7";
-    inherit (wheel) platform hash;
+    inherit (wheel) hash platform;
     format = "wheel";
     dist = "py3";
     python = "py3";
