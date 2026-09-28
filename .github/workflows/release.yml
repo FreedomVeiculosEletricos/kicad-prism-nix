@@ -1,10 +1,5 @@
 name: Release
 
-# Publishing the draft this opens is the one manual step: nothing downstream
-# looks at a release until it stops being a draft. The release commit lands on
-# no branch, so main keeps tracking upstream dev and the tag is the only ref
-# pointing at the pin.
-
 on:
   schedule:
     - cron: "7 6,18 * * *"
@@ -22,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: release
@@ -34,7 +30,7 @@ jobs:
   release:
     name: Cut a release from the newest upstream tag
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v5
@@ -90,10 +86,7 @@ jobs:
           ref: ${{ steps.plan.outputs.upstream_tag }}
           upstream: ${{ env.UPSTREAM }}
 
-      - uses: ./.github/actions/build-all
-        if: steps.plan.outputs.skip == 'false'
-
-      - name: Tag the build
+      - name: Tag the pin
         if: steps.plan.outputs.skip == 'false'
         env:
           TAG: ${{ steps.plan.outputs.tag }}
@@ -108,21 +101,30 @@ jobs:
           git tag -a "$TAG" -m "KiCad Prism ${UPSTREAM_TAG}, packaging ${TAG##*-nix.}"
           git push origin "refs/tags/${TAG}"
 
-      - name: Open the release as a draft
+      - name: Build the tag in CI
         if: steps.plan.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.plan.outputs.tag }}
-          UPSTREAM_TAG: ${{ steps.plan.outputs.upstream_tag }}
         run: |
           set -euo pipefail
 
-          cat > notes.md <<NOTES
-          Packaging of upstream [\`${UPSTREAM_TAG}\`](https://github.com/${UPSTREAM}/releases/tag/${UPSTREAM_TAG}), built green.
+          gh workflow run ci.yml --ref "$TAG"
 
-          This is a draft. Publishing it is what makes the tag public.
-          NOTES
+          run=""
+          for _ in $(seq 30); do
+            sleep 5
+            run=$(gh run list --workflow ci.yml --branch "$TAG" \
+                    --event workflow_dispatch --limit 1 \
+                    --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run" ] && break
+          done
+          if [ -z "$run" ]; then
+            echo "CI never started on ${TAG}." >&2
+            exit 1
+          fi
 
-          gh release create "$TAG" --draft --title "$TAG" --notes-file notes.md
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${run}"
+          echo "Tagged ${TAG}; building it in ${url}" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "Drafted ${TAG} — publish it to deploy." >> "$GITHUB_STEP_SUMMARY"
+          gh run watch "$run" --exit-status --interval 60

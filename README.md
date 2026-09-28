@@ -69,9 +69,10 @@ this repo moves forward; if it doesn't, it stays where it was until someone
 looks.
 
 Twice a day we check whether Prism has published a release. When they do, we
-build that and tag it here.
+tag it here and build the tag; a GitHub release is published only if it's
+green. A tag without a release is one that failed.
 
-So every commit you can pin to has been built at least once, and the branch
+So every release you can pin to has been built at least once, and the branch
 never advances past something broken.
 
 ## Maintenance
