@@ -91,6 +91,14 @@ Its regression tests run during the Nix build. Remove the backport when the
 pinned upstream includes the fix; check patch compatibility before changing the
 upstream input.
 
+The frontend also uses the viewer bundle and manifest from [upstream PR #683,
+commit `1c8fc737`](https://github.com/krishna-swaroop/KiCAD-Prism/pull/683/commits/1c8fc737fda77c94cde7114855aca31859892c68).
+This fixes KiCad 10 variant DNP marks when the project's top-level sheet UUID
+differs from the schematic UUID. The parser worker and library renderer stay
+byte-identical to the release. The build rejects incompatible assets, verifies
+the manifest hashes and browser cache key, and runs the full frontend test suite.
+Remove both backports when the pinned upstream includes the complete fixes.
+
 `nixpkgs` is only ever moved by hand, so that a failed weekly build can only
 mean Prism changed:
 
