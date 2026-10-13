@@ -84,6 +84,13 @@ can express; the files under `nix/packages` re-export the result.
 Version numbers are read out of `flake.lock` at evaluation time, so the pin and
 the version can't drift apart.
 
+Application fixes are kept in `nix/patches` and applied by the affected package.
+The frontend carries a backport of [upstream PR #682](https://github.com/krishna-swaroop/KiCAD-Prism/pull/682)
+to load project settings, custom page layouts and subsheets with the root sheet.
+Its regression tests run during the Nix build. Remove the backport when the
+pinned upstream includes the fix; check patch compatibility before changing the
+upstream input.
+
 `nixpkgs` is only ever moved by hand, so that a failed weekly build can only
 mean Prism changed:
 

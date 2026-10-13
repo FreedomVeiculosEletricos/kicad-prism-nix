@@ -12,6 +12,9 @@ buildNpmPackage (finalAttrs: {
 
   src = sources.kicad-prism-frontend;
 
+  # PR #682, backported to the viewer host in our pinned upstream revision.
+  patches = [ ../../patches/682-load-project-and-page-layout.patch ];
+
   npmDeps = importNpmLock {
     npmRoot = sources.kicad-prism-frontend;
   };
@@ -25,6 +28,13 @@ buildNpmPackage (finalAttrs: {
 
   postBuild = ''
     npm run build:panel
+  '';
+
+  doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+    npm test -- src/components/visualizer.test.tsx
+    runHook postCheck
   '';
 
   installPhase = ''

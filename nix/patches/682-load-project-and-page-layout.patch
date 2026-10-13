@@ -1,0 +1,372 @@
+Backport of https://github.com/krishna-swaroop/KiCAD-Prism/pull/682
+Upstream head: adeacc4145e0b12f7e0097e59549c1719b5c74a0
+Target: 0e627ec3593cac06a061cc5c61285216589869cb (frontend)
+
+The pinned version keeps the viewer host in visualizer.tsx, before the
+EcadViewer adapter was introduced. Load all sources in one replaceSources
+call and wait for the independent support-file request before mounting.
+Preserve the decode-race retry and fall back to the default page layout
+when the support request fails. The upstream backend change is a docstring
+only and is not needed for this backport.
+
+Remove when the pinned upstream includes PR #682. The regression tests
+cover schematic and PCB loading, delayed support files, and HTTP/network
+failures.
+
+diff --git a/src/components/visualizer.test.tsx b/src/components/visualizer.test.tsx
+new file mode 100644
+index 0000000..f3a943a
+--- /dev/null
++++ b/src/components/visualizer.test.tsx
+@@ -0,0 +1,123 @@
++import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
++import { MemoryRouter } from "react-router-dom";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++import { Visualizer } from "./visualizer";
++
++vi.mock("@/features/live-comments/use-live-comments", () => {
++    const live = { comments: [], setComments: () => {}, refresh: () => {}, status: "live", error: null, hasLoaded: true };
++    return { useLiveComments: () => live };
++});
++vi.mock("./webgpu-3d-tab", () => ({ WebGpu3dTab: () => null }));
++
++class FakeEcadViewer extends HTMLElement {
++    ready = Promise.resolve();
++    replaceSources = vi.fn(async () => {});
++    appendSources = vi.fn(async () => {});
++    setActive = vi.fn();
++    setViewportInsets = vi.fn();
++    setCommentOverlays = vi.fn(() => []);
++    clearCommentOverlays = vi.fn();
++    clearSelection = vi.fn();
++    setVariant = vi.fn(() => true);
++    getVariant = vi.fn(() => null);
++    getVariants = vi.fn(() => []);
++}
++customElements.define("ecad-viewer", FakeEcadViewer);
++
++const project = { filename: "board.kicad_pro", content: "{}" };
++const layout = { filename: "frame.kicad_wks", content: "(kicad_wks)" };
++const sub = { filename: "Subsheets/power.kicad_sch", content: "(kicad_sch power)" };
++const root = { filename: "root.kicad_sch", content: "(kicad_sch root)" };
++const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
++    status, headers: { "Content-Type": "application/json" },
++});
++const viewers = () => Array.from(document.querySelectorAll<FakeEcadViewer>("ecad-viewer"));
++
++function serve(url: string): Response {
++    const path = new URL(url, "http://prism.test").pathname;
++    if (path.endsWith("/schematic")) return new Response(root.content);
++    if (path.endsWith("/schematic/subsheets")) return json({ files: [{ name: sub.filename, url: "/files/Subsheets/power.kicad_sch" }] });
++    if (path.endsWith("/files/Subsheets/power.kicad_sch")) return new Response(sub.content);
++    if (path.endsWith("/pcb")) return new Response("(kicad_pcb board)");
++    if (path.endsWith("/viewer/support-files")) return json({ files: [project, layout] });
++    if (path.endsWith("/comments/mention-candidates")) return json([]);
++    return json({ detail: "not here" }, 404);
++}
++
++function renderVisualizer() {
++    return render(<MemoryRouter><Visualizer projectId="p1" user={null} /></MemoryRouter>);
++}
++
++beforeEach(() => {
++    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => serve(String(input))));
++});
++afterEach(() => vi.unstubAllGlobals());
++
++describe("viewer project and page layout loading", () => {
++    it("loads the project, page layout and subsheets with the root in one call", async () => {
++        renderVisualizer();
++        await waitFor(() => expect(viewers()).toHaveLength(1));
++        const [sch] = viewers();
++        await waitFor(() => expect(sch.dataset.ecadReadyRevision).toBe("schematic:p1:latest"));
++        expect(sch.replaceSources).toHaveBeenCalledTimes(1);
++        expect(sch.replaceSources).toHaveBeenCalledWith({
++            revisionKey: "schematic:p1:latest", sources: [root, project, layout, sub],
++        });
++        expect(sch.appendSources).not.toHaveBeenCalled();
++
++        fireEvent.click(screen.getByRole("button", { name: /^PCB/ }));
++        await waitFor(() => expect(viewers()).toHaveLength(2));
++        const pcb = viewers().find((node) => node !== sch)!;
++        await waitFor(() => expect(pcb.dataset.ecadReadyRevision).toBe("pcb:p1:latest"));
++        expect(pcb.replaceSources).toHaveBeenCalledTimes(1);
++        expect(pcb.replaceSources).toHaveBeenCalledWith({
++            revisionKey: "pcb:p1:latest",
++            sources: [{ filename: "board.kicad_pcb", content: "(kicad_pcb board)" }, project, layout],
++        });
++        expect(pcb.appendSources).not.toHaveBeenCalled();
++    });
++
++    it("waits for delayed support files but does not wait for iBoM", async () => {
++        let resolveSupport!: (response: Response) => void;
++        const support = new Promise<Response>((resolve) => { resolveSupport = resolve; });
++        vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
++            const url = String(input);
++            if (url.endsWith("/viewer/support-files")) return support;
++            if (url.endsWith("/ibom")) return new Promise<Response>(() => {});
++            return Promise.resolve(serve(url));
++        }));
++        renderVisualizer();
++        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
++        expect(viewers()).toHaveLength(0);
++        await act(async () => { resolveSupport(json({ files: [project, layout] })); });
++        await waitFor(() => expect(viewers()).toHaveLength(1));
++        const [sch] = viewers();
++        await waitFor(() => expect(sch.dataset.ecadReadyRevision).toBe("schematic:p1:latest"));
++        expect(sch.replaceSources).toHaveBeenCalledTimes(1);
++        expect(sch.replaceSources).toHaveBeenCalledWith({
++            revisionKey: "schematic:p1:latest", sources: [root, project, layout, sub],
++        });
++    });
++
++    it.each(["http", "network"])("draws the sheet when the support request fails (%s)", async (failure) => {
++        vi.spyOn(console, "error").mockImplementation(() => {});
++        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
++            const url = String(input);
++            if (url.endsWith("/viewer/support-files")) {
++                if (failure === "network") throw new Error("offline");
++                return json({}, 503);
++            }
++            return serve(url);
++        }));
++        renderVisualizer();
++        await waitFor(() => expect(viewers()).toHaveLength(1));
++        const [sch] = viewers();
++        await waitFor(() => expect(sch.dataset.ecadReadyRevision).toBe("schematic:p1:latest"));
++        expect(sch.replaceSources).toHaveBeenCalledWith({
++            revisionKey: "schematic:p1:latest", sources: [root, sub],
++        });
++        expect(sch.appendSources).not.toHaveBeenCalled();
++        vi.restoreAllMocks();
++    });
++});
+diff --git a/src/components/visualizer.tsx b/src/components/visualizer.tsx
+index 81c94bb..d3039b4 100644
+--- a/src/components/visualizer.tsx
++++ b/src/components/visualizer.tsx
+@@ -152,7 +152,7 @@ type EcadViewerHostProps = {
+ };
+
+ /**
+- * Load the root sheet, and give a failed paint one more go.
++ * Load a revision's sources, and give a failed paint one more go.
+  *
+  * The viewer paints as soon as sources land and throws "Image not ready" when
+  * a bitmap on the sheet has not finished decoding, which rejects
+@@ -166,7 +166,7 @@ type EcadViewerHostProps = {
+  * third would be saying the failure is something other than a race, and if it
+  * is then the caller should hear about it.
+  */
+-async function loadRootSource(
++async function loadSources(
+     viewer: ECadViewerElement,
+     payload: Parameters<ECadViewerElement["replaceSources"]>[0],
+     isStale: () => boolean,
+@@ -193,9 +193,6 @@ function EcadViewerHost({
+     viewportInsets,
+ }: EcadViewerHostProps) {
+     const hostRef = useRef<ECadViewerElement | null>(null);
+-    const replaceReadyRef = useRef<Promise<void> | null>(null);
+-    const rootSource = sources[0];
+-    const appendedSources = useMemo(() => sources.slice(1), [sources]);
+     const viewportLeft = viewportInsets.left ?? 0;
+     const viewportRight = viewportInsets.right ?? 0;
+     const viewportTop = viewportInsets.top ?? 0;
+@@ -208,17 +205,18 @@ function EcadViewerHost({
+
+     useLayoutEffect(() => {
+         const viewer = hostRef.current;
+-        if (!viewer || !rootSource) return;
++        if (!viewer || sources.length === 0) return;
+
+         let cancelled = false;
+
+-        const replaceRoot = async () => {
++        viewer.dataset.ecadReadyRevision = "";
++        const replaceAllSources = async () => {
+             await customElements.whenDefined("ecad-viewer");
+             if (cancelled || !hostRef.current) return;
+             hostRef.current.dataset.ecadReadyRevision = "";
+-            await loadRootSource(
++            await loadSources(
+                 hostRef.current,
+-                { revisionKey: viewerKey, sources: [rootSource] },
++                { revisionKey: viewerKey, sources },
+                 () => cancelled || !hostRef.current,
+             );
+             if (cancelled || !hostRef.current) return;
+@@ -226,15 +224,13 @@ function EcadViewerHost({
+             // element exposes `ready` (Promise), not a boolean isReady flag.
+             // Gating on undefined left ecadReadyRevision unset forever, which
+             // blocked Escape clears and SCH cross-probe apply.
+-            if (appendedSources.length === 0) {
+-                await hostRef.current.ready;
+-                if (cancelled || !hostRef.current) return;
+-                hostRef.current.dataset.ecadReadyRevision = viewerKey;
+-                onReady();
+-            }
++            await hostRef.current.ready;
++            if (cancelled || !hostRef.current) return;
++            hostRef.current.dataset.ecadReadyRevision = viewerKey;
++            onReady();
+         };
+
+-        replaceReadyRef.current = replaceRoot().catch((cause) => {
++        void replaceAllSources().catch((cause) => {
+             if (cancelled) return;
+             // Left unhandled this surfaced only as an uncaught rejection in the
+             // console, with the sheet stuck half-drawn and no hint why.
+@@ -249,34 +245,7 @@ function EcadViewerHost({
+         return () => {
+             cancelled = true;
+         };
+-    }, [appendedSources.length, onReady, rootSource, viewerKey]);
+-
+-    useEffect(() => {
+-        if (!appendedSources.length) return;
+-        if (hostRef.current) hostRef.current.dataset.ecadReadyRevision = "";
+-        let cancelled = false;
+-        const appendRemainingSources = async () => {
+-            await replaceReadyRef.current;
+-            if (cancelled || !hostRef.current) return;
+-            await hostRef.current.appendSources({
+-                revisionKey: viewerKey,
+-                sources: appendedSources,
+-            });
+-            if (cancelled || !hostRef.current) return;
+-            await hostRef.current.ready;
+-            if (cancelled || !hostRef.current) return;
+-            hostRef.current.dataset.ecadReadyRevision = viewerKey;
+-            onReady();
+-        };
+-        void appendRemainingSources().catch((cause) => {
+-            if (cancelled) return;
+-            // Same shape as the root load: an unhandled rejection here left
+-            // the extra sheets missing and the viewer never marked ready.
+-            console.error("[Visualizer] Could not load the remaining sheets", cause);
+-            toast.error("Some sheets in this design could not be drawn.");
+-        });
+-        return () => { cancelled = true; };
+-    }, [appendedSources, onReady, viewerKey]);
++    }, [onReady, sources, viewerKey]);
+
+     useEffect(() => {
+         let cancelled = false;
+@@ -362,7 +331,7 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+     const [pcbActivated, setPcbActivated] = useState(false);
+     const [schematicContent, setSchematicContent] = useState<string | null>(null);
+     const [subsheets, setSubsheets] = useState<{ filename: string, content: string }[]>([]);
+-    const [viewerSupportFiles, setViewerSupportFiles] = useState<ViewerBlobSource[]>([]);
++    const [viewerSupportFiles, setViewerSupportFiles] = useState<ViewerBlobSource[] | null>(null);
+     const [pcbContent, setPcbContent] = useState<string | null>(null);
+     const [ibomUrl, setIbomUrl] = useState<string | null>(null);
+     const [schematicContentLoaded, setSchematicContentLoaded] = useState(false);
+@@ -623,9 +592,8 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+             const baseUrl = `/api/projects/${projectId}`;
+
+             try {
+-                const [ibomRes, supportRes, mentionsRes] = await Promise.all([
++                const [ibomRes, mentionsRes] = await Promise.all([
+                     fetch(appendCommit(`${baseUrl}/ibom`), { signal }),
+-                    fetch(appendCommit(`${baseUrl}/viewer/support-files`), { signal }),
+                     fetchApi(`${baseUrl}/comments/mention-candidates`, { signal }),
+                 ]);
+                 if (cancelled) return;
+@@ -635,13 +603,6 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+                 } else {
+                     setIbomUrl(null);
+                 }
+-                if (supportRes.ok) {
+-                    const payload = await supportRes.json() as { files?: ViewerBlobSource[] };
+-                    if (cancelled) return;
+-                    setViewerSupportFiles(payload.files ?? []);
+-                } else {
+-                    setViewerSupportFiles([]);
+-                }
+                 if (mentionsRes.ok) {
+                     const candidates = await mentionsRes.json() as MentionCandidate[];
+                     if (cancelled) return;
+@@ -666,6 +627,39 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+         };
+     }, [projectId, appendCommit]);
+
++    // Both viewers wait for the project and page layout. A failed request
++    // settles to no files, so the sheet still draws with KiCad's default layout.
++    useEffect(() => {
++        const controller = new AbortController();
++        let cancelled = false;
++
++        const fetchSupportFiles = async () => {
++            let files: ViewerBlobSource[] = [];
++            try {
++                const response = await fetchApi(
++                    appendCommit(`/api/projects/${projectId}/viewer/support-files`),
++                    { signal: controller.signal },
++                );
++                if (response.ok) {
++                    const payload = await response.json() as { files?: ViewerBlobSource[] };
++                    files = payload.files ?? [];
++                }
++            } catch (err) {
++                if (!cancelled && !isAbortError(err)) {
++                    console.error("Error loading viewer support files", err);
++                }
++            }
++            if (cancelled) return;
++            setViewerSupportFiles(files);
++        };
++
++        void fetchSupportFiles();
++        return () => {
++            cancelled = true;
++            controller.abort();
++        };
++    }, [appendCommit, projectId]);
++
+     useEffect(() => {
+         if (semanticIndex) return;
+         const controller = new AbortController();
+@@ -1223,7 +1217,7 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+     }, [comments]);
+
+     // Publish comment markers to the ecad-viewer overlay layer. This never
+-    // touches replaceSources/appendSources - overlays are a separate render pass.
++    // touches replaceSources - overlays are a separate render pass.
+     useEffect(() => {
+         let resolutions: EcadCommentAnchorResolution[] = [];
+         if (activeTab === "sch") {
+@@ -1564,12 +1558,12 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+         [schematicContent],
+     );
+     const schematicSources = useMemo<ViewerBlobSource[]>(
+-        () => (schematicRootSource ? [schematicRootSource, ...viewerSupportFiles, ...subsheets] : []),
++        () => (schematicRootSource ? [schematicRootSource, ...(viewerSupportFiles ?? []), ...subsheets] : []),
+         [schematicRootSource, subsheets, viewerSupportFiles],
+     );
+     const pcbSources = useMemo<ViewerBlobSource[]>(
+         () => (pcbContent
+-            ? [{ filename: "board.kicad_pcb", content: pcbContent }, ...viewerSupportFiles]
++            ? [{ filename: "board.kicad_pcb", content: pcbContent }, ...(viewerSupportFiles ?? [])]
+             : []),
+         [pcbContent, viewerSupportFiles],
+     );
+@@ -1664,7 +1658,7 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+                 <div className="relative min-w-0 flex-1 overflow-hidden">
+                     {/* Schematic View - always mounted after first visit */}
+                     <div aria-hidden={activeTab !== "sch"} className={`absolute inset-0 z-10 transition-opacity duration-200 ${activeTab === "sch" ? "visible pointer-events-auto opacity-100" : "invisible pointer-events-none opacity-0"}`}>
+-                        {schematicContentLoaded ? (
++                        {schematicContentLoaded && viewerSupportFiles ? (
+                             schematicSources.length > 0 ? (
+                                 <div className="relative h-full min-w-0 overflow-hidden">
+                                     <div className="absolute inset-0 min-h-0 min-w-0">
+@@ -1707,7 +1701,7 @@ export function Visualizer({ projectId, user, commit, active: viewerActive = tru
+
+                     {/* PCB View - always mounted after first visit */}
+                     <div aria-hidden={activeTab !== "pcb"} className={`absolute inset-0 z-10 transition-opacity duration-200 ${activeTab === "pcb" ? "visible pointer-events-auto opacity-100" : "invisible pointer-events-none opacity-0"}`}>
+-                        {!pcbActivated ? null : pcbContentLoaded ? (
++                        {!pcbActivated ? null : pcbContentLoaded && viewerSupportFiles ? (
+                             pcbSources.length > 0 ? (
+                                 <div className="relative h-full min-w-0 overflow-hidden">
+                                     <div className="absolute inset-0 min-h-0 min-w-0">
