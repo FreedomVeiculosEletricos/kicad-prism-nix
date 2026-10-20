@@ -11,6 +11,10 @@ buildNpmPackage (finalAttrs: {
 
   src = sources.kicad-prism-viewer;
 
+  postUnpack = ''
+    cp -r --no-preserve=mode ${sources.kicad-prism}/frontend frontend
+  '';
+
   npmDeps = importNpmLock {
     npmRoot = sources.kicad-prism-viewer;
   };
