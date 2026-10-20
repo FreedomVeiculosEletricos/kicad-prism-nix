@@ -83,5 +83,5 @@ jobs:
           Packaging of upstream [\`${upstream_tag}\`](https://github.com/${UPSTREAM}/releases/tag/${upstream_tag}), [built green](${RUN}).
           NOTES
 
-          gh release create "$TAG" --verify-tag --prerelease \
+          gh release create "$TAG" --verify-tag --latest \
             --title "$TAG" --notes-file notes.md
