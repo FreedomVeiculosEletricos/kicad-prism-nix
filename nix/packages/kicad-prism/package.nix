@@ -78,9 +78,13 @@ python312Packages.buildPythonApplication {
     mkdir -p $out/${python.sitePackages}/app/static
     cp -r backend/app/. $out/${python.sitePackages}/app
 
-    install -Dm444 -t $out/${python.sitePackages}/scripts \
-      scripts/ecad-diff.mjs scripts/ecad-parse.mjs
-    cp -r scripts/vendor $out/${python.sitePackages}/scripts/vendor
+    if [ -d backend/design-compare-parser ]; then
+      cp -r backend/design-compare-parser $out/${python.sitePackages}/design-compare-parser
+    else
+      install -Dm444 -t $out/${python.sitePackages}/scripts \
+        scripts/ecad-diff.mjs scripts/ecad-parse.mjs
+      cp -r scripts/vendor $out/${python.sitePackages}/scripts/vendor
+    fi
 
     cp -r ${kicad-prism-frontend}/share/kicad-prism/remote-provider \
       $out/${python.sitePackages}/app/static/remote_provider
@@ -118,7 +122,7 @@ python312Packages.buildPythonApplication {
     (
       cd backend
       PATH=${toolchainPath} \
-      PYTHONPATH="${makePythonPath dependencies}" \
+      PYTHONPATH="${makePythonPath (dependencies ++ [ python312Packages.httpx ])}" \
       AUTH_ENABLED=false \
         ${python.interpreter} -m unittest discover -s tests -p "test_*.py"
     )

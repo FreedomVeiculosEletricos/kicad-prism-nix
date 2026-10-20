@@ -7,16 +7,18 @@
   src,
 }:
 let
+  release = lib.hasPrefix "v" ref;
+
   day = builtins.substring 0 8 lastModifiedDate;
 
   version =
-    if lib.hasPrefix "v" ref then
+    if release then
       lib.removePrefix "v" ref
     else
       "0-unstable-${builtins.substring 0 4 day}-${builtins.substring 4 2 day}-${builtins.substring 6 2 day}";
 in
 {
-  inherit version;
+  inherit release version;
 
   requirements =
     if builtins.pathExists (src + "/requirements/runtime.in") then
