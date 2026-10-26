@@ -32,7 +32,7 @@
 
     # main tracks upstream dev; release.yml re-points this at a tag.
     kicad-prism = {
-      url = "github:krishna-swaroop/KiCAD-Prism/dev";
+      url = "github:krishna-swaroop/KiCAD-Prism/v5.0.2-alpha";
       flake = false;
     };
   };
