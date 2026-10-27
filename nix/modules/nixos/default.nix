@@ -392,6 +392,16 @@ in
             "/" = {
               index = "index.html";
               tryFiles = "$uri $uri/ /index.html";
+              extraConfig = ''
+                add_header Cache-Control "no-cache" always;
+              '';
+            };
+
+            "/assets/" = {
+              tryFiles = "$uri =404";
+              extraConfig = ''
+                add_header Cache-Control "public, max-age=31536000, immutable";
+              '';
             };
 
             "= /healthz".extraConfig = ''
@@ -413,6 +423,23 @@ in
             '';
 
             "/oauth/" = proxy "";
+
+            "/git/" = proxy ''
+              client_max_body_size 2g;
+              client_body_timeout 3600s;
+              proxy_request_buffering off;
+              proxy_buffering off;
+              proxy_send_timeout 3600s;
+              proxy_read_timeout 3600s;
+            '';
+
+            "/mcp" = proxy ''
+              proxy_read_timeout 300s;
+            '';
+
+            "/.well-known/oauth-protected-resource" = proxy "";
+
+            "/.well-known/oauth-authorization-server/" = proxy "";
 
             "/remote-provider/" = proxy "";
 
