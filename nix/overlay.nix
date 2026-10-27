@@ -35,13 +35,8 @@ in
         };
       });
 
-      kiutils = pyfinal.callPackage ./python-modules/kiutils/package.nix { };
       kicad-monkey = pyfinal.callPackage ./python-modules/kicad-monkey/package.nix { };
-      kicad-cruncher = pyfinal.callPackage ./python-modules/kicad-cruncher/package.nix { };
       wn-geometer = pyfinal.callPackage ./python-modules/wn-geometer/package.nix { };
-      cadquery-ocp-proxy = pyfinal.callPackage ./python-modules/cadquery-ocp-proxy/package.nix { };
-      cadquery-ocp-novtk = pyfinal.callPackage ./python-modules/cadquery-ocp-novtk/package.nix { };
-      python-fcl = pyfinal.callPackage ./python-modules/python-fcl/package.nix { };
     })
   ];
 
