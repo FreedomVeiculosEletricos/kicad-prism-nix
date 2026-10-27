@@ -21,7 +21,7 @@ For a server, pin a release instead:
 
 ```nix
 {
-  inputs.kicad-prism.url = "github:FreedomVeiculosEletricos/kicad-prism-nix/v3.0.2-alpha-nix.1";
+  inputs.kicad-prism.url = "github:FreedomVeiculosEletricos/kicad-prism-nix/v5.0.2-alpha-nix.2";
 }
 ```
 
@@ -34,7 +34,8 @@ packaging fixes made without Prism itself changing.
 packages.x86_64-linux.kicad-prism            the server and worker
                      .kicad-prism-frontend   the web UI and KiCad panel
                      .kicad-prism-viewer      the semantic viewer runtime
-                     .prism-clipper2          its native geometry library
+                     .prism-kicad             its native KiCad parser and design-bundle CLI
+                     .geometer                the geometry runtime prism-kicad launches
 
 nixosModules.default   services.kicad-prism
 overlays.default       all of the above, as a nixpkgs overlay
@@ -51,7 +52,7 @@ Prism is a flake input here, so you can point it somewhere else without forking
 anything:
 
 ```console
-$ nix build --override-input kicad-prism github:krishna-swaroop/KiCAD-Prism/v3.1.0-alpha
+$ nix build --override-input kicad-prism github:krishna-swaroop/KiCAD-Prism/v5.1.0-alpha
 $ nix build --override-input kicad-prism ../KiCAD-Prism
 ```
 

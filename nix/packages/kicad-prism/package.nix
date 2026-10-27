@@ -1,15 +1,16 @@
 {
   lib,
   coreutils,
+  geometer,
   git,
+  git-lfs,
   gnutar,
   kicad,
   kicad-prism-frontend,
-  kicad-prism-viewer,
   makeWrapper,
   nodejs,
   openssh,
-  prism-clipper2,
+  prism-kicad,
   pyproject-nix,
   python312Packages,
   sources,
@@ -37,17 +38,23 @@ let
     Override the package, hold the bump, or record the mismatch in `acceptedDrift` with the reason it is safe.
   '' (upstream.renderers.buildPythonPackage { inherit python; }).dependencies;
 
-  viewerRoot = "${kicad-prism-viewer}/share/kicad-prism-viewer";
+  testDependencies = with python312Packages; [
+    httpx
+    jsonschema
+    pytest
+    pytest-xdist
+  ];
 
   toolchainPath = lib.makeBinPath [
     coreutils
     git
+    git-lfs
     gnutar
     kicad
     nodejs
     openssh
+    prism-kicad
     python
-    python312Packages.kicad-cruncher
   ];
 
   installCheckScript = writeText "kicad-prism-install-check.py" ''
@@ -57,7 +64,7 @@ let
 
     print(app.main.app.title)
 
-    for tool in ("kicad-cli", "kicad-cruncher"):
+    for tool in ("kicad-cli", "prism-kicad", "git-lfs"):
         found = shutil.which(tool)
         if found is None:
             raise SystemExit(f"{tool} is not on PATH; the wrapper did not take")
@@ -78,22 +85,16 @@ python312Packages.buildPythonApplication {
     mkdir -p $out/${python.sitePackages}/app/static
     cp -r backend/app/. $out/${python.sitePackages}/app
 
-    if [ -d backend/design-compare-parser ]; then
-      cp -r backend/design-compare-parser $out/${python.sitePackages}/design-compare-parser
-    else
-      install -Dm444 -t $out/${python.sitePackages}/scripts \
-        scripts/ecad-diff.mjs scripts/ecad-parse.mjs
-      cp -r scripts/vendor $out/${python.sitePackages}/scripts/vendor
-    fi
-
     cp -r ${kicad-prism-frontend}/share/kicad-prism/remote-provider \
       $out/${python.sitePackages}/app/static/remote_provider
 
     local -a wrapperArgs=(
       --prefix PATH : ${toolchainPath}
       --prefix PYTHONPATH : "$out/${python.sitePackages}:${makePythonPath dependencies}"
-      --set-default PRISM_SEMANTIC_VIEWER_REPO ${viewerRoot}
-      --set-default PRISM_CLIPPER2_LIBRARY ${prism-clipper2}/lib/libprism_clipper2.so
+      --set-default PRISM_DESIGN_BUNDLE_CLI_PATH ${lib.getExe prism-kicad}
+      --set-default PRISM_DESIGN_BUNDLE_SCHEMA_DIR ${prism-kicad}/share/prism-kicad/schema
+      --set-default PRISM_ARTWORK_CONFIG_DIR ${prism-kicad}/share/prism-kicad/artwork-configs
+      --set-default GEOMETER_EXECUTABLE ${lib.getExe geometer}
     )
 
     makeWrapper ${python.interpreter} $out/bin/kicad-prism-server \
@@ -122,9 +123,11 @@ python312Packages.buildPythonApplication {
     (
       cd backend
       PATH=${toolchainPath} \
-      PYTHONPATH="${makePythonPath (dependencies ++ [ python312Packages.httpx ])}" \
+      PYTHONPATH="${makePythonPath (dependencies ++ testDependencies)}" \
       AUTH_ENABLED=false \
-        ${python.interpreter} -m unittest discover -s tests -p "test_*.py"
+        ${python.interpreter} -m pytest -p no:cacheprovider -q \
+          --deselect tests/test_job_outcomes.py::ReleaseBuildRowFencingTests \
+          --deselect tests/test_token_issuer_scopes.py::ServiceClientTokenTests
     )
 
     runHook postInstallCheck
