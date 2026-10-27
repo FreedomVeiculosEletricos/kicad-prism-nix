@@ -29,5 +29,6 @@ in
   kicad-prism = src;
   kicad-prism-frontend = src + "/frontend";
   kicad-prism-viewer = src + "/kicad-prism-viewer";
+  native = src + "/native";
   prism-clipper2 = src + "/kicad-prism-viewer/native/prism-clipper2";
 }
