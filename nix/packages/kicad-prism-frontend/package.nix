@@ -1,46 +1,22 @@
 {
   lib,
   buildNpmPackage,
-  fetchFromGitHub,
   importNpmLock,
   kicad-prism-viewer,
   sources,
 }:
 
-let
-  # PR #683 rebuilds the release viewer with only the KiCad 10 sheet-path fix.
-  viewerBackport = fetchFromGitHub {
-    owner = "krishna-swaroop";
-    repo = "KiCAD-Prism";
-    rev = "1c8fc737fda77c94cde7114855aca31859892c68";
-    hash = "sha256-/XSi9Okcrw0L+cEwU5MCiozXhUWtD9Oq0eqD1tILQ3s=";
-  };
-
-  fixtures = sources.kicad-prism + "/backend/tests/fixtures";
-in
 buildNpmPackage (finalAttrs: {
   pname = "kicad-prism-frontend";
   version = sources.version;
 
   src = sources.kicad-prism-frontend;
 
-  # PR #682, backported to the viewer host in our pinned upstream revision.
-  patches = lib.optionals sources.release [ ../../patches/682-load-project-and-page-layout.patch ];
-
-  postUnpack = lib.optionalString (builtins.pathExists fixtures) ''
-    mkdir -p backend/tests
-    cp -r --no-preserve=mode ${fixtures} backend/tests/fixtures
-  '';
-
-  postPatch = lib.optionalString sources.release ''
-    # Refuse to combine the release bundle with a different worker/renderer.
-    cmp public/parser.worker.js ${viewerBackport}/frontend/public/parser.worker.js
-    cmp public/ecad-renderer.js ${viewerBackport}/frontend/public/ecad-renderer.js
-    cp ${viewerBackport}/frontend/public/ecad-viewer{.js,.manifest.json} public/
-    substituteInPlace index.html \
-      --replace-fail \
-        'ecad-viewer.js?v=55ef0a844038a87f30e968b9509cafd4c6e25414ec0ca3700a296529f3f8939a' \
-        'ecad-viewer.js?v=a980a27be70e1922ecd22c1754e803f64093f1d5cae26b5b5c89b77f56b9ba73'
+  postUnpack = ''
+    for path in backend/tests/fixtures fixtures native/contracts; do
+      mkdir -p "$(dirname "$path")"
+      cp -r --no-preserve=mode ${sources.kicad-prism}/$path $path
+    done
   '';
 
   npmDeps = importNpmLock {
@@ -61,7 +37,6 @@ buildNpmPackage (finalAttrs: {
   doCheck = true;
   checkPhase = ''
     runHook preCheck
-    ${lib.optionalString sources.release "node ${../../checks/ecad-viewer-artifacts.mjs}"}
     npm test
     runHook postCheck
   '';
