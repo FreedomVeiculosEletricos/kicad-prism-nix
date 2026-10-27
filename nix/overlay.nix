@@ -53,10 +53,6 @@ in
     inherit sources;
   };
 
-  prism-clipper2 = final.callPackage ./packages/prism-clipper2/package.nix {
-    inherit sources;
-  };
-
   prism-kicad = final.callPackage ./packages/prism-kicad/package.nix {
     inherit sources;
   };
