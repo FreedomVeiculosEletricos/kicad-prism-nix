@@ -57,6 +57,8 @@ in
     inherit sources;
   };
 
+  geometer = final.callPackage ./packages/geometer/package.nix { };
+
   kicad-prism = final.callPackage ./packages/kicad-prism/package.nix {
     inherit pyproject-nix sources;
   };
