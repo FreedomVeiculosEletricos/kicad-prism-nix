@@ -63,10 +63,25 @@ jobs:
                    | sed -E "s/.*-nix\.//" | sort -n | tail -1)
 
           if [ -n "$last" ] && [ "$FORCE" != "true" ]; then
-            echo "Already released as ${upstream_tag}-nix.${last}; nothing to do." \
+            last_tag="${upstream_tag}-nix.${last}"
+            published=$(gh release view "$last_tag" --json isDraft --jq '.isDraft | not' 2>/dev/null || echo false)
+
+            if [ "$published" = "true" ]; then
+              echo "Already released as ${last_tag}; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [ "$(git rev-parse "${last_tag}^")" = "$(git rev-parse HEAD)" ]; then
+              {
+                echo "${last_tag} was cut from this same main and never published."
+                echo "Publishing it failed; publish it by hand, or re-run with force to retry."
+              } | tee -a "$GITHUB_STEP_SUMMARY" >&2
+              exit 1
+            fi
+
+            echo "${last_tag} was never published and main has moved; cutting a new one." \
               >> "$GITHUB_STEP_SUMMARY"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
           fi
 
           next=$(( ${last:-0} + 1 ))
@@ -86,7 +101,8 @@ jobs:
           ref: ${{ steps.plan.outputs.upstream_tag }}
           upstream: ${{ env.UPSTREAM }}
 
-      - name: Tag the pin
+      - name: Push the pin for Garnix
+        id: push
         if: steps.plan.outputs.skip == 'false'
         env:
           TAG: ${{ steps.plan.outputs.tag }}
@@ -98,33 +114,37 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git commit -m "chore(release): pin upstream to ${UPSTREAM_TAG}" flake.nix flake.lock
-          git tag -a "$TAG" -m "KiCad Prism ${UPSTREAM_TAG}, packaging ${TAG##*-nix.}"
-          git push origin "refs/tags/${TAG}"
+          git push --force origin "HEAD:refs/heads/release/${TAG}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Build the tag in CI
+      - uses: ./.github/actions/await-garnix
+        id: garnix
+        if: steps.plan.outputs.skip == 'false'
+        with:
+          sha: ${{ steps.push.outputs.sha }}
+
+      - name: Tag and publish the release
         if: steps.plan.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.plan.outputs.tag }}
+          UPSTREAM_TAG: ${{ steps.plan.outputs.upstream_tag }}
+          BUILD: ${{ steps.garnix.outputs.url }}
         run: |
           set -euo pipefail
 
-          gh workflow run ci.yml --ref "$TAG"
+          git tag -a "$TAG" -m "KiCad Prism ${UPSTREAM_TAG}, packaging ${TAG##*-nix.}"
+          git push origin "refs/tags/${TAG}"
 
-          run=""
-          for _ in $(seq 30); do
-            sleep 5
-            run=$(gh run list --workflow ci.yml --branch "$TAG" \
-                    --event workflow_dispatch --limit 1 \
-                    --json databaseId --jq '.[0].databaseId // empty')
-            [ -n "$run" ] && break
-          done
-          if [ -z "$run" ]; then
-            echo "CI never started on ${TAG}." >&2
-            exit 1
-          fi
+          cat > notes.md <<NOTES
+          Packaging of upstream [\`${UPSTREAM_TAG}\`](https://github.com/${UPSTREAM}/releases/tag/${UPSTREAM_TAG}), [built green on Garnix](${BUILD}).
+          NOTES
 
-          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${run}"
-          echo "Tagged ${TAG}; building it in ${url}" >> "$GITHUB_STEP_SUMMARY"
+          gh release create "$TAG" --verify-tag --latest \
+            --title "$TAG" --notes-file notes.md
 
-          gh run watch "$run" --exit-status --interval 60
+      - name: Drop the release branch
+        if: always() && steps.push.outcome == 'success'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: git push origin --delete "refs/heads/release/${TAG}"

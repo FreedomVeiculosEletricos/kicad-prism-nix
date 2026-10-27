@@ -57,11 +57,8 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # Runs before the push, so `main` only ever points at a green build.
-      - uses: ./.github/actions/build-all
-        if: steps.bump.outputs.changed == 'true'
-
-      - name: Commit the new pin
+      - name: Push the new pin for Garnix
+        id: push
         if: steps.bump.outputs.changed == 'true'
         run: |
           set -euo pipefail
@@ -70,4 +67,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git commit -m "chore(deps): track upstream dev at ${{ steps.bump.outputs.short }}" flake.lock
-          git push origin HEAD:main
+          git push --force origin HEAD:refs/heads/canary
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/await-garnix
+        if: steps.bump.outputs.changed == 'true'
+        with:
+          sha: ${{ steps.push.outputs.sha }}
+
+      - name: Advance main
+        if: steps.bump.outputs.changed == 'true'
+        run: git push origin HEAD:main
+
+      - name: Drop the canary branch
+        if: always() && steps.push.outcome == 'success'
+        run: git push origin --delete refs/heads/canary
