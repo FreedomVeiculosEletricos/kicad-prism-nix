@@ -1,0 +1,54 @@
+name: Await Garnix
+description: Waits for Garnix to finish building a commit and fails unless it went green.
+
+inputs:
+  sha:
+    description: Commit Garnix is building.
+    required: true
+  timeout-minutes:
+    description: How long to wait before giving up.
+    required: false
+    default: "90"
+
+outputs:
+  url:
+    description: Link to the Garnix result.
+    value: ${{ steps.await.outputs.url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Await Garnix on ${{ inputs.sha }}
+      id: await
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SHA: ${{ inputs.sha }}
+        TIMEOUT: ${{ inputs.timeout-minutes }}
+      run: |
+        set -euo pipefail
+
+        deadline=$(( $(date +%s) + TIMEOUT * 60 ))
+
+        while :; do
+          result=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?check_name=All%20Garnix%20checks" \
+                     --jq '[.check_runs[] | select(.app.slug == "garnix-o-s-systems")] | .[0] // empty
+                           | "\(.status) \(.conclusion // "-") \(.html_url)"')
+
+          if [ -n "$result" ]; then
+            read -r status conclusion url <<<"$result"
+            if [ "$status" = completed ]; then
+              echo "url=${url}" >> "$GITHUB_OUTPUT"
+              echo "Garnix finished ${SHA} with ${conclusion}: ${url}" >> "$GITHUB_STEP_SUMMARY"
+              [ "$conclusion" = success ]
+              exit
+            fi
+          fi
+
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "Garnix did not finish ${SHA} within ${TIMEOUT} minutes." >&2
+            exit 1
+          fi
+
+          sleep 30
+        done
