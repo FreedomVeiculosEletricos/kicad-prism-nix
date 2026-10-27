@@ -57,6 +57,10 @@ in
     inherit sources;
   };
 
+  prism-kicad = final.callPackage ./packages/prism-kicad/package.nix {
+    inherit sources;
+  };
+
   geometer = final.callPackage ./packages/geometer/package.nix { };
 
   kicad-prism = final.callPackage ./packages/kicad-prism/package.nix {
