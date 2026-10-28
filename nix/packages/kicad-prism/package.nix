@@ -12,6 +12,7 @@
   openssh,
   prism-kicad,
   pyproject-nix,
+  python3,
   python312Packages,
   sources,
   writeText,
@@ -44,6 +45,17 @@ let
     pytest
     pytest-xdist
   ];
+
+  kicadPython = python3.buildEnv.override {
+    extraLibs = with python3.pkgs; [
+      requests
+      six
+      wxpython
+    ];
+    postBuild = ''
+      echo ${kicad.base}/${python3.sitePackages} > $out/${python3.sitePackages}/kicad.pth
+    '';
+  };
 
   toolchainPath = lib.makeBinPath [
     coreutils
@@ -95,6 +107,7 @@ python312Packages.buildPythonApplication {
       --set-default PRISM_DESIGN_BUNDLE_SCHEMA_DIR ${prism-kicad}/share/prism-kicad/schema
       --set-default PRISM_ARTWORK_CONFIG_DIR ${prism-kicad}/share/prism-kicad/artwork-configs
       --set-default GEOMETER_EXECUTABLE ${lib.getExe geometer}
+      --set-default PRISM_KICAD_PYTHON ${kicadPython.interpreter}
     )
 
     makeWrapper ${python.interpreter} $out/bin/kicad-prism-server \
@@ -114,6 +127,8 @@ python312Packages.buildPythonApplication {
     runHook preInstallCheck
 
     $out/bin/kicad-prism-worker --help > /dev/null
+
+    HOME=$TMPDIR ${kicadPython.interpreter} -I -c "import pcbnew; pcbnew.ZONE_FILLER(pcbnew.BOARD())"
 
     PATH=${toolchainPath} \
     PYTHONPATH="$out/${python.sitePackages}:${makePythonPath dependencies}" \
