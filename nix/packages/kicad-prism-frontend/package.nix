@@ -1,6 +1,7 @@
 {
   lib,
   buildNpmPackage,
+  ecad-renderer,
   importNpmLock,
   kicad-prism-viewer,
   sources,
@@ -17,6 +18,17 @@ buildNpmPackage (finalAttrs: {
       mkdir -p "$(dirname "$path")"
       cp -r --no-preserve=mode ${sources.kicad-prism}/$path $path
     done
+  '';
+
+  postPatch = ''
+    grep -qF '"adapterCommit": "${ecad-renderer.adapterCommit}"' public/ecad-viewer.manifest.json
+    old=$(sha256sum public/ecad-renderer.js | cut -d' ' -f1)
+    cp ${ecad-renderer}/ecad-renderer.js public/ecad-renderer.js
+    new=$(sha256sum public/ecad-renderer.js | cut -d' ' -f1)
+    substituteInPlace src/lib/ecad-renderer-build.ts \
+      --replace-fail "ecad-renderer.js?v=$old" "ecad-renderer.js?v=$new"
+    substituteInPlace public/ecad-viewer.manifest.json \
+      --replace-fail "sha256:$old" "sha256:$new"
   '';
 
   npmDeps = importNpmLock {
