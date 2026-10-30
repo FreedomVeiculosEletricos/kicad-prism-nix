@@ -3,6 +3,7 @@
   git,
   rustPlatform,
   sources,
+  upstreamPatches,
 }:
 
 rustPlatform.buildRustPackage {
@@ -10,6 +11,8 @@ rustPlatform.buildRustPackage {
   version = sources.version;
 
   src = sources.kicad-prism;
+
+  patches = upstreamPatches;
 
   cargoRoot = "native";
   buildAndTestSubdir = "native";
