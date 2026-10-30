@@ -15,6 +15,7 @@
   python3,
   python312Packages,
   sources,
+  upstreamPatches,
   writeText,
 }:
 
@@ -88,6 +89,7 @@ python312Packages.buildPythonApplication {
   version = sources.version;
   pyproject = false;
   src = sources.kicad-prism;
+  patches = upstreamPatches;
   nativeBuildInputs = [ makeWrapper ];
   inherit dependencies;
   dontWrapPythonPrograms = true;

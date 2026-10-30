@@ -16,6 +16,15 @@ let
       src
       ;
   };
+
+  upstreamPatches = [
+    (final.fetchpatch {
+      name = "semantic-index-stale-board-nets.patch";
+      url = "https://github.com/krishna-swaroop/KiCAD-Prism/commit/a3d95226eb8068b1d5354422726712b272a33da3.patch";
+      excludes = [ "native/Cargo.lock" ];
+      hash = "sha256-RPGG8rDYiXtafhYtXG0VAeHhWW3YXfa82EPVA4VjIIc=";
+    })
+  ];
 in
 {
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
@@ -51,12 +60,12 @@ in
   };
 
   prism-kicad = final.callPackage ./packages/prism-kicad/package.nix {
-    inherit sources;
+    inherit sources upstreamPatches;
   };
 
   geometer = final.callPackage ./packages/geometer/package.nix { };
 
   kicad-prism = final.callPackage ./packages/kicad-prism/package.nix {
-    inherit pyproject-nix sources;
+    inherit pyproject-nix sources upstreamPatches;
   };
 }
