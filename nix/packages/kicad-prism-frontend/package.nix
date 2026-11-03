@@ -29,6 +29,13 @@ buildNpmPackage (finalAttrs: {
       --replace-fail "ecad-renderer.js?v=$old" "ecad-renderer.js?v=$new"
     substituteInPlace public/ecad-viewer.manifest.json \
       --replace-fail "sha256:$old" "sha256:$new"
+    old=$(sha256sum public/ecad-viewer.js | cut -d' ' -f1)
+    cp ${ecad-renderer}/ecad-viewer.js public/ecad-viewer.js
+    new=$(sha256sum public/ecad-viewer.js | cut -d' ' -f1)
+    substituteInPlace index.html \
+      --replace-fail "ecad-viewer.js?v=$old" "ecad-viewer.js?v=$new"
+    substituteInPlace public/ecad-viewer.manifest.json \
+      --replace-fail "sha256:$old" "sha256:$new"
   '';
 
   npmDeps = importNpmLock {
