@@ -28,6 +28,11 @@ buildNpmPackage (finalAttrs: {
       url = "https://github.com/krishna-swaroop/ecad-viewer/commit/e5da870b640941a7e7d78d7f50663ec4b90c95b3.patch";
       hash = "sha256-dXZoZkFuaPE/L4vXqfQUZTx9QN3iLSYLeNmKvyuMkpY=";
     })
+    (fetchpatch {
+      name = "size-pad-paste-and-mask-openings.patch";
+      url = "https://github.com/krishna-swaroop/ecad-viewer/commit/b541155be98b602e0778492aa09ebe9f6d853d67.patch";
+      hash = "sha256-YyBsrxqPhcU2Fc/tuQRgvqfWvtwNgcoGUKClV+koEZ4=";
+    })
   ];
 
   npmDeps = importNpmLock {
