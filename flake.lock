@@ -83,16 +83,16 @@
     "kicad-prism": {
       "flake": false,
       "locked": {
-        "lastModified": 1793887680,
-        "narHash": "sha256-PcVPxXhUQ+JWksQaKHztvMleGVNvIAXrGf3HDFuxegQ=",
+        "lastModified": 1793868412,
+        "narHash": "sha256-d02qdMxR6PACSQvagRqz3txlHMndyXth6N7Yap+kZtQ=",
         "owner": "krishna-swaroop",
         "repo": "KiCAD-Prism",
-        "rev": "a62fadf526eee6a69d15b2cc1e3ee29ec1102c1e",
+        "rev": "d262236964c3f754d17494213ddfc7f04654c45d",
         "type": "github"
       },
       "original": {
         "owner": "krishna-swaroop",
-        "ref": "dev",
+        "ref": "v5.3.0-alpha",
         "repo": "KiCAD-Prism",
         "type": "github"
       }
