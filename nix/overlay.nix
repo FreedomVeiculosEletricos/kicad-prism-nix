@@ -49,7 +49,9 @@ in
     })
   ];
 
-  ecad-renderer = final.callPackage ./packages/ecad-renderer/package.nix { };
+  ecad-renderer = final.callPackage ./packages/ecad-renderer/package.nix {
+    inherit sources;
+  };
 
   kicad-prism-frontend = final.callPackage ./packages/kicad-prism-frontend/package.nix {
     inherit sources;
