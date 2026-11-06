@@ -17,14 +17,7 @@ let
       ;
   };
 
-  upstreamPatches = [
-    (final.fetchpatch {
-      name = "semantic-index-stale-board-nets.patch";
-      url = "https://github.com/krishna-swaroop/KiCAD-Prism/commit/a3d95226eb8068b1d5354422726712b272a33da3.patch";
-      excludes = [ "native/Cargo.lock" ];
-      hash = "sha256-RPGG8rDYiXtafhYtXG0VAeHhWW3YXfa82EPVA4VjIIc=";
-    })
-  ];
+  upstreamPatches = [ ];
 in
 {
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [

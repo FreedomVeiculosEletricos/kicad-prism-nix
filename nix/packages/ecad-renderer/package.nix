@@ -20,11 +20,6 @@ buildNpmPackage (finalAttrs: {
 
   patches = [
     (fetchpatch {
-      name = "flip-library-field-y.patch";
-      url = "https://github.com/krishna-swaroop/ecad-viewer/commit/73c584a71b868ef9df8567493c2c634f415ad430.patch";
-      hash = "sha256-lG+if2iianu0OnUa1Ca1cU4oyJXlcrmDfIQQT9wOT20=";
-    })
-    (fetchpatch {
       name = "draw-visible-symbol-fields.patch";
       url = "https://github.com/krishna-swaroop/ecad-viewer/commit/e5da870b640941a7e7d78d7f50663ec4b90c95b3.patch";
       hash = "sha256-dXZoZkFuaPE/L4vXqfQUZTx9QN3iLSYLeNmKvyuMkpY=";
