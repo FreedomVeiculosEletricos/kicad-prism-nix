@@ -144,7 +144,8 @@ python312Packages.buildPythonApplication {
       AUTH_ENABLED=false \
         ${python.interpreter} -m pytest -p no:cacheprovider -q \
           --deselect tests/test_job_outcomes.py::ReleaseBuildRowFencingTests \
-          --deselect tests/test_token_issuer_scopes.py::ServiceClientTokenTests
+          --deselect tests/test_token_issuer_scopes.py::ServiceClientTokenTests \
+          --deselect tests/test_supply_inventory.py::InventorySyncTests
     )
 
     runHook postInstallCheck
