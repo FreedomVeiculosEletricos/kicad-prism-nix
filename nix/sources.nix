@@ -11,6 +11,8 @@ let
 
   day = builtins.substring 0 8 lastModifiedDate;
 
+  manifest = lib.importJSON (src + "/frontend/public/ecad-viewer.manifest.json");
+
   version =
     if release then
       lib.removePrefix "v" ref
@@ -19,6 +21,13 @@ let
 in
 {
   inherit release version;
+
+  ecad-viewer = builtins.fetchTree {
+    type = "github";
+    owner = "krishna-swaroop";
+    repo = "ecad-viewer";
+    rev = manifest.adapterCommit;
+  };
 
   requirements = src + "/requirements/runtime.in";
 

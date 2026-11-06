@@ -21,7 +21,10 @@ buildNpmPackage (finalAttrs: {
   '';
 
   postPatch = ''
-    grep -qF '"adapterCommit": "${ecad-renderer.adapterCommit}"' public/ecad-viewer.manifest.json
+    grep -qF '"adapterCommit": "${ecad-renderer.adapterCommit}"' public/ecad-viewer.manifest.json || {
+      echo "ecad-renderer is built from ${ecad-renderer.adapterCommit}, but public/ecad-viewer.manifest.json expects $(grep -o '"adapterCommit": "[^"]*"' public/ecad-viewer.manifest.json)" >&2
+      exit 1
+    }
     old=$(sha256sum public/ecad-renderer.js | cut -d' ' -f1)
     cp ${ecad-renderer}/ecad-renderer.js public/ecad-renderer.js
     new=$(sha256sum public/ecad-renderer.js | cut -d' ' -f1)

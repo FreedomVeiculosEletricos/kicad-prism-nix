@@ -1,21 +1,22 @@
 {
   lib,
   buildNpmPackage,
-  fetchFromGitHub,
   fetchpatch,
   importNpmLock,
+  sources,
 }:
 
 buildNpmPackage (finalAttrs: {
   pname = "ecad-renderer";
-  version = "0-unstable-2026-10-23";
+  version = "0-unstable-${
+    lib.concatStringsSep "-" [
+      (builtins.substring 0 4 sources.ecad-viewer.lastModifiedDate)
+      (builtins.substring 4 2 sources.ecad-viewer.lastModifiedDate)
+      (builtins.substring 6 2 sources.ecad-viewer.lastModifiedDate)
+    ]
+  }";
 
-  src = fetchFromGitHub {
-    owner = "krishna-swaroop";
-    repo = "ecad-viewer";
-    rev = "ab038d9fe95229e1cae611649870e290f7e076da";
-    hash = "sha256-6o0g9uVhuGYF9wbaSB91jjcYZioFLoEa+Yph+XfL2ZM=";
-  };
+  src = sources.ecad-viewer;
 
   patches = [
     (fetchpatch {
@@ -55,7 +56,7 @@ buildNpmPackage (finalAttrs: {
     runHook postInstall
   '';
 
-  passthru.adapterCommit = finalAttrs.src.rev;
+  passthru.adapterCommit = sources.ecad-viewer.rev;
 
   meta = {
     description = "Standalone KiCad symbol and footprint renderer from ECAD Viewer";
