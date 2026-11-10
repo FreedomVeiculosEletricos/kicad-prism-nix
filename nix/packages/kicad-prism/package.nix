@@ -1,5 +1,6 @@
 {
   lib,
+  bash,
   coreutils,
   geometer,
   git,
@@ -59,6 +60,7 @@ let
   };
 
   toolchainPath = lib.makeBinPath [
+    bash
     coreutils
     git
     git-lfs
