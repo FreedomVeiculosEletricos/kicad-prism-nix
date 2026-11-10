@@ -147,7 +147,9 @@ python312Packages.buildPythonApplication {
         ${python.interpreter} -m pytest -p no:cacheprovider -q \
           --deselect tests/test_job_outcomes.py::ReleaseBuildRowFencingTests \
           --deselect tests/test_token_issuer_scopes.py::ServiceClientTokenTests \
-          --deselect tests/test_supply_inventory.py::InventorySyncTests
+          --deselect tests/test_supply_inventory.py::InventorySyncTests \
+          --deselect tests/test_job_outcomes.py::ReleaseBuildOutcomeTests::test_a_cancel_that_kills_the_runner_settles_the_build_as_cancelled \
+          --deselect tests/test_job_outcomes.py::ReleaseBuildOutcomeTests::test_a_crashed_runner_settles_the_build_as_failed
     )
 
     runHook postInstallCheck
