@@ -35,6 +35,12 @@ buildNpmPackage (finalAttrs: {
       url = "https://github.com/krishna-swaroop/ecad-viewer/commit/2e224521661fc7a71aad008981ec3b42ff1525fd.patch";
       hash = "sha256-qHFqWY8bnL72bPYSMby4Gs7j4KzrqB84d/0r6YodLok=";
     })
+    # https://github.com/krishna-swaroop/ecad-viewer/pull/81
+    (fetchpatch {
+      name = "fill-board-body-inside-edge-cuts.patch";
+      url = "https://github.com/krishna-swaroop/ecad-viewer/commit/7265f06bf5567b0acd4ae0f80b58ac4633aca943.patch";
+      hash = "sha256-9xGUd6DKMi7aSrcGj/vXHTWXHf+PX+167KMcHRQxjys=";
+    })
   ];
 
   npmDeps = importNpmLock {
