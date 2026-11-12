@@ -29,6 +29,12 @@ buildNpmPackage (finalAttrs: {
       url = "https://github.com/krishna-swaroop/ecad-viewer/commit/b541155be98b602e0778492aa09ebe9f6d853d67.patch";
       hash = "sha256-YyBsrxqPhcU2Fc/tuQRgvqfWvtwNgcoGUKClV+koEZ4=";
     })
+    # https://github.com/krishna-swaroop/ecad-viewer/pull/80
+    (fetchpatch {
+      name = "report-custom-layer-names.patch";
+      url = "https://github.com/krishna-swaroop/ecad-viewer/commit/2e224521661fc7a71aad008981ec3b42ff1525fd.patch";
+      hash = "sha256-qHFqWY8bnL72bPYSMby4Gs7j4KzrqB84d/0r6YodLok=";
+    })
   ];
 
   npmDeps = importNpmLock {
