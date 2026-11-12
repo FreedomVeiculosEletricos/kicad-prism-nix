@@ -2,6 +2,7 @@
   lib,
   buildNpmPackage,
   ecad-renderer,
+  fetchpatch,
   importNpmLock,
   kicad-prism-viewer,
   sources,
@@ -12,6 +13,23 @@ buildNpmPackage (finalAttrs: {
   version = sources.version;
 
   src = sources.kicad-prism-frontend;
+
+  # The viewer bundles, manifest and cache keys in these patches are left out:
+  # postPatch rebuilds them from ecad-renderer, which carries the viewer side.
+  patches = [
+    # https://github.com/krishna-swaroop/KiCAD-Prism/pull/1193
+    (fetchpatch {
+      name = "show-custom-layer-names.patch";
+      url = "https://github.com/krishna-swaroop/KiCAD-Prism/commit/de4fee15d26e8106548b010ca817968561ed328d.patch";
+      relative = "frontend";
+      excludes = [
+        "index.html"
+        "public/*"
+        "src/lib/ecad-renderer-build.ts"
+      ];
+      hash = "sha256-WJ38Z81NvCi9Jj8RCqizb5h8wG3CiQLIXB1o85/nNlw=";
+    })
+  ];
 
   postUnpack = ''
     for path in backend/tests/fixtures fixtures native/contracts; do
