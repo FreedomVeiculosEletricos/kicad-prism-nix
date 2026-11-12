@@ -29,6 +29,13 @@ buildNpmPackage (finalAttrs: {
       ];
       hash = "sha256-WJ38Z81NvCi9Jj8RCqizb5h8wG3CiQLIXB1o85/nNlw=";
     })
+    # https://github.com/krishna-swaroop/KiCAD-Prism/pull/1194
+    (fetchpatch {
+      name = "group-pcb-layers.patch";
+      url = "https://github.com/krishna-swaroop/KiCAD-Prism/commit/d437d430e1414e74f33919856d8bf9b1c7500159.patch";
+      relative = "frontend";
+      hash = "sha256-TDnE2TYn1fZKK8P170eGWViw4eBEYMGdsjtQvfGSEcY=";
+    })
   ];
 
   postUnpack = ''
