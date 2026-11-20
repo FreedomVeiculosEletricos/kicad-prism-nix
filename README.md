@@ -82,7 +82,7 @@ something nobody tried.
 
 ## How versions get here
 
-Everything is built on [Garnix](https://garnix.io). It builds the flake's
+Everything is built on [Garnix](https://garnix.infra.ossystems.io/). It builds the flake's
 checks, which cover every package and the dev shell.
 
 Once a week we pull Prism's newest development code and push it to a `canary`
